@@ -1,34 +1,34 @@
-// server.js - Versión optimizada para Render y local
+// server.js - Versión definitiva para Render
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const fs = require('fs');
 const cors = require('cors');
 
-// Configuración inicial
+// 1. Configuración inicial
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// 1. Conexión a la base de datos (con debug)
+// 2. Conexión a la base de datos (con validación)
 const dbPath = path.join(__dirname, 'db', 'votaciones.db');
 console.log('🛠️  Ruta de la base de datos:', dbPath);
 
-// Verifica si el archivo existe o créalo
+// Crear archivo de DB si no existe
 if (!fs.existsSync(dbPath)) {
-  console.log('⚠️  Archivo de DB no encontrado. Creando uno nuevo...');
-  fs.writeFileSync(dbPath, ''); // Crea archivo vacío
+  fs.writeFileSync(dbPath, '');
+  console.log('⚠️  Archivo de DB creado.');
 }
 
 const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE, (err) => {
   if (err) {
-    console.error('❌ Error fatal al conectar a SQLite:', err.message);
-    process.exit(1); // Fuerza la salida para que Render muestre el error
+    console.error('❌ Error al conectar a SQLite:', err.message);
+    process.exit(1);
   }
-  console.log('✅ Conectado a la base de datos SQLite');
+  console.log('✅ Conectado a SQLite.');
 });
 
-// 2. Crear tabla si no existe
+// 3. Crear tabla de votos (si no existe)
 db.serialize(() => {
   db.run(`
     CREATE TABLE IF NOT EXISTS votos (
@@ -38,13 +38,25 @@ db.serialize(() => {
     )
   `, (err) => {
     if (err) console.error('Error al crear tabla:', err);
-    else console.log('✔  Tabla "votos" verificada');
+    else console.log('✔  Tabla "votos" lista.');
   });
 });
 
-// 3. Rutas de la API
+// 4. Rutas de la API
+// Ruta raíz (¡SOLUCIÓN AL ERROR "Cannot GET /"!)
+app.get('/', (req, res) => {
+  res.send(`
+    <h1>Sistema de Votaciones 2025</h1>
+    <p>API operativa. Endpoints:</p>
+    <ul>
+      <li><a href="/api/candidatos">GET /api/candidatos</a></li>
+      <li>POST /api/votar (body: {"candidatoId": number})</li>
+    </ul>
+  `);
+});
+
+// Obtener candidatos
 app.get('/api/candidatos', (req, res) => {
-  // Datos de ejemplo (reemplaza con tus candidatos reales)
   const candidatos = [
     { id: 1, nombre: "Jorge Quiroga Ramírez", partido: "Alianza Libre" },
     { id: 2, nombre: "Samuel Doria Medina", partido: "Alianza Unidad" }
@@ -52,6 +64,7 @@ app.get('/api/candidatos', (req, res) => {
   res.json(candidatos);
 });
 
+// Registrar voto
 app.post('/api/votar', (req, res) => {
   const { candidatoId } = req.body;
   if (!candidatoId) return res.status(400).json({ error: 'Se requiere candidatoId' });
@@ -66,18 +79,17 @@ app.post('/api/votar', (req, res) => {
   );
 });
 
-// 4. Iniciar servidor
+// 5. Iniciar servidor (¡CON MANEJO DE ERRORES!)
 const PORT = process.env.PORT || 3001;
 const server = app.listen(PORT, () => {
-  console.log(`🚀 Servidor activo en puerto ${PORT}`);
+  console.log(`🚀 Servidor activo en http://localhost:${PORT}`);
 });
 
-// Manejo de errores del servidor
 server.on('error', (err) => {
   console.error('🔥 Error crítico:', err.message);
 });
 
-// Manejo de cierre limpio
+// Manejo de cierre (para Render)
 process.on('SIGTERM', () => {
   console.log('Apagando servidor...');
   db.close();
